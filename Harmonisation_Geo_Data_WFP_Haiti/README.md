@@ -1,6 +1,5 @@
-# Harmonisation Geo Data – WFP Haiti 🇭🇹
+# Comparative administratives Units
 
-This project helps harmonize commune names across multiple administrative 
 
 The goal is to compare the reference database with the different administrative unit databases used in each of these tools.
 
