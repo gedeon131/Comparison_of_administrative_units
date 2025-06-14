@@ -44,43 +44,49 @@ df_comet_ADM2 = pd.DataFrame(df_comet["Commune_ADM2"].dropna().unique(), columns
 df_scope_ADM2 = pd.DataFrame(df_scope["Commune_ADM2"].dropna().unique(), columns=["Commune_ADM2"])
 df_less_ADM2 = pd.DataFrame(df_less["Commune_ADM2"].dropna().unique(), columns=["Commune_ADM2"])
 
+# ADM2 + ADM3 combinations
+df_ocha_complet = pd.DataFrame((df_ocha["Commune_ADM2"] + "_&_" + df_ocha["Section_Communale_ADM3"]).dropna().unique(), columns=["ADM2_&_ADM3"])
+df_scope_complet = pd.DataFrame((df_scope["Commune_ADM2"] + "_&_" + df_scope["Section_Communale_ADM3"]).dropna().unique(), columns=["ADM2_&_ADM3"])
+
 # Clean up the ",HT" suffix from each row in df_less_ADM2
 df_less_ADM2_1 = df_less_ADM2.copy()
 df_less_ADM2_1["Commune_ADM2"] = df_less_ADM2_1["Commune_ADM2"].str.replace(r",HT$", "", regex=True)
 
-
-# Preview results
-print("\n Unique Commune_ADM2 values:")
-print("OCHA :", df_ocha_ADM2.shape[0], "communes")
-print("COMET:", df_comet_ADM2.shape[0], "communes")
-print("SCOPE:", df_scope_ADM2.shape[0], "communes")
-print("LESS :", df_less_ADM2.shape[0], "communes")
-
- 
-def export_to_excel(result, source_name):
+def export_to_excel(result, source_name, col_name="Commune_ADM2"):
     """
-    Export result (common, missing, extra) into Excel file with real values.
+    Export result (common, missing, extra) into Excel file.
+    Handles string safety and skips empty files.
     """
     output_dir = "output"
     os.makedirs(output_dir, exist_ok=True)
 
-    filename = os.path.join(output_dir, f"comparison_OCHA_vs_{source_name}.xlsx")
+    if col_name == "ADM2_&_ADM3":
+        filename = os.path.join(output_dir, f"Comparison_ADM2_&ADM3_OCHA_vs_{source_name}.xlsx")
+    else:
+        filename = os.path.join(output_dir, f"comparison_OCHA_vs_{source_name}.xlsx")
+
+    def safe_dataframe(data, colname):
+        return pd.DataFrame([str(x) for x in data], columns=[colname])
+
+    common_data = result["common"]
+    if common_data and isinstance(common_data[0], tuple):
+        if len(common_data[0]) == 3:
+            df_common = pd.DataFrame(common_data, columns=["OCHA", source_name, "Score"])
+        else:
+            df_common = pd.DataFrame(common_data, columns=["OCHA", source_name])
+    else:
+        df_common = safe_dataframe(common_data, col_name)
+
+    df_missing = safe_dataframe(result["missing_in_other"], col_name)
+    df_extra = safe_dataframe(result["extra_in_other"], col_name)
+
+    if df_common.empty and df_missing.empty and df_extra.empty:
+        print("⚠️ Skipping export: all result sets are empty.")
+        return
 
     with pd.ExcelWriter(filename, engine="openpyxl") as writer:
-        # Common
-        common_data = result["common"]
-        if common_data and isinstance(common_data[0], tuple):
-            df_common = pd.DataFrame(common_data, columns=["OCHA", source_name])
-        else:
-            df_common = pd.DataFrame(common_data, columns=["Commune_ADM2"])
         df_common.to_excel(writer, sheet_name="Common", index=False)
-
-        # Missing
-        df_missing = pd.DataFrame(result["missing_in_other"], columns=["Missing in " + source_name])
         df_missing.to_excel(writer, sheet_name="Missing", index=False)
-
-        # Extra
-        df_extra = pd.DataFrame(result["extra_in_other"], columns=["Extra in " + source_name])
         df_extra.to_excel(writer, sheet_name="Extra", index=False)
 
-    print(f" Exported: {filename}")
+    print(f"Exported: {filename}")
